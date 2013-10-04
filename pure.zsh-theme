@@ -57,9 +57,9 @@ autoload -Uz vcs_info
 zstyle ':vcs_info:*' enable hg bzr git
 zstyle ':vcs_info:*:*' unstagedstr '!'
 zstyle ':vcs_info:*:*' stagedstr '+'
-zstyle ':vcs_info:*:*' formats "$FX[bold]%r$FX[no-bold]/:%S" "%s/%b" "%%u%c" "%S"
-zstyle ':vcs_info:*:*' actionformats "$FX[bold]%r$FX[no-bold]/:%S" "%s/%b" "%u%c (%a)" "%S"
-zstyle ':vcs_info:*:*' nvcsformats "%~" "" "" "%~"
+zstyle ':vcs_info:*:*' formats "$FX[bold]%r$FX[no-bold]/:%S" "%s/%b" "%%u%c"
+zstyle ':vcs_info:*:*' actionformats "$FX[bold]%r$FX[no-bold]/:%S" "%s/%b" "%u%c (%a)"
+zstyle ':vcs_info:*:*' nvcsformats "%~" "" ""
 
 # Fastest possible way to check if repo is dirty
 #
@@ -67,7 +67,7 @@ git_dirty() {
     # Check if we're in a git repo
     command git rev-parse --is-inside-work-tree &>/dev/null || return
     # Check if it's dirty
-    command git diff --quiet --ignore-submodules HEAD &>/dev/null; [ $? -eq 1 ] && echo "*"
+    command git diff --quiet --ignore-submodules HEAD &>/dev/null; [ $? -eq 1 ] && echo "*" # ✱
 }
 
 __shorten() {
@@ -163,7 +163,7 @@ repo_information() {
     split_msg=(${(s/:/)vcs_info_msg_0_})
     # echo ${split_msg[2]} >&2
     vcs_info_msg_3_abbrev_=$(__shorten ${split_msg[2]})
-    echo "%F{blue}${split_msg[1]%%/.}$vcs_info_msg_3_abbrev_ %F{8}$vcs_info_msg_1_`git_dirty` $vcs_info_msg_2_%f"
+    echo "%F{blue}${split_msg[1]%%/.}$vcs_info_msg_3_abbrev_ %F{magenta}$vcs_info_msg_1_%f%F{8}`git_dirty` $vcs_info_msg_2_%f"
 }
 
 precmd_time() {
