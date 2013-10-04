@@ -50,14 +50,16 @@ setopt prompt_subst
 #
 autoload -Uz vcs_info
 
+# source $HOME/.oh-my-zsh-extras/zsh-pure/shorten.sh
+
 # Set vcs_info parameters
 #
 zstyle ':vcs_info:*' enable hg bzr git
 zstyle ':vcs_info:*:*' unstagedstr '!'
 zstyle ':vcs_info:*:*' stagedstr '+'
-zstyle ':vcs_info:*:*' formats "$FX[bold]%r$FX[no-bold]/%S" "%s/%b" "%%u%c"
-zstyle ':vcs_info:*:*' actionformats "$FX[bold]%r$FX[no-bold]/%S" "%s/%b" "%u%c (%a)"
-zstyle ':vcs_info:*:*' nvcsformats "%~" "" ""
+zstyle ':vcs_info:*:*' formats "$FX[bold]%r$FX[no-bold]/:%S" "%s/%b" "%%u%c" "%S"
+zstyle ':vcs_info:*:*' actionformats "$FX[bold]%r$FX[no-bold]/:%S" "%s/%b" "%u%c (%a)" "%S"
+zstyle ':vcs_info:*:*' nvcsformats "%~" "" "" "%~"
 
 # Fastest possible way to check if repo is dirty
 #
@@ -68,10 +70,104 @@ git_dirty() {
     command git diff --quiet --ignore-submodules HEAD &>/dev/null; [ $? -eq 1 ] && echo "*"
 }
 
+__shorten() {
+    # This function ensures that the PWD string does not exceed $MAX_PWD_LENGTH characters
+    PWD=$1
+
+    if [[ "$PWD" == "/" ]] ; then
+        echo "/"
+        return
+    fi
+
+    # # determine part of path within HOME, or entire path if not in HOME
+    # RESIDUAL=${PWD#$HOME}
+
+    # # compare RESIDUAL with PWD to determine whether we are in HOME or not
+    # if [ X"$RESIDUAL" != X"$PWD" ]
+    # then
+    #     PREFIX="~"
+    # fi
+
+    # check if residual path needs truncating to keep total length below MAX_PWD_LENGTH
+    # NORMAL=${PREFIX}${RESIDUAL}
+    setopt shwordsplit
+
+    RESIDUAL=${PWD}
+    #newPWD=${PREFIX}
+    newPWD=""
+    baseWD=`basename "$PWD"`
+    # echo $baseWD
+    OIFS=$IFS
+    IFS='/'
+    bits=$RESIDUAL
+    # bitsa=("${(s:/:)bits}")
+    for x in $bits
+    do
+        if [[ "$x" == "$baseWD" ]]
+        then
+            NEXT="/$x"
+        elif [ ${#x} -ge 4 ]
+        then
+            NEXT=""
+            OIFS2=$IFS
+            IFS='.'
+            bits2=$x
+            for y in $bits2
+            do
+                if [ ${#y} -ge 4 ]
+                then
+                    NEXT2=""
+                    OIFS3=$IFS
+                    IFS='_'
+                    bits3=$y
+                    for z in $bits3
+                    do
+                        if [ ${#z} -ge 4 ]
+                        then
+                            NEXT3="_${z:0:1}"
+                        else
+                            NEXT3="_$z"
+                        fi
+                        NEXT2="$NEXT2$NEXT3"
+                    done
+                    NEXT2=".${NEXT2:1:20}"
+                    IFS=$OIFS3
+                    #NEXT2=".${y:0:1}"
+                else
+                    NEXT2=".$y"
+                fi
+                NEXT="$NEXT$NEXT2"
+            done
+            NEXT="/${NEXT:1:20}"
+            IFS=$OIFS2
+        else
+            NEXT="/$x"
+        fi
+        newPWD="$newPWD$NEXT"
+    done
+    #echo "${#RESIDUAL[@]}"
+    newPWD="${PREFIX}${newPWD:1:200}"
+    IFS=$OIFS
+
+    unsetopt shwordsplit
+
+    # return to caller
+    echo $newPWD
+}
+
+
 # Display information about the current repository
 #
 repo_information() {
-    echo "%F{blue}${vcs_info_msg_0_%%/.} %F{8}$vcs_info_msg_1_`git_dirty` $vcs_info_msg_2_%f"
+    # local 
+    split_msg=(${(s/:/)vcs_info_msg_0_})
+    # echo ${split_msg[2]} >&2
+    vcs_info_msg_3_abbrev_=$(__shorten ${split_msg[2]})
+    echo "%F{blue}${split_msg[1]%%/.}$vcs_info_msg_3_abbrev_ %F{8}$vcs_info_msg_1_`git_dirty` $vcs_info_msg_2_%f"
+}
+
+precmd_time() {
+    echo "%F{cyan}$(date '+%I:%M %p')%f "
 }
 
 # Displays the exec time of the last command if set threshold was exceeded
@@ -93,7 +189,8 @@ preexec() {
 #
 precmd() {
     vcs_info # Get version control info before we start outputting stuff
-    print -P "\n$(repo_information) %F{yellow}$(cmd_exec_time)%f"
+    # print -P "\n$(repo_information) %F{yellow}$(cmd_exec_time)%f"
+    print -P "$(precmd_time)$(repo_information) %F{yellow}$(cmd_exec_time)%f"
 }
 
 # Define prompts
