@@ -161,12 +161,18 @@ __shorten() {
 repo_information() {
     # local 
     split_msg=(${(s/:/)vcs_info_msg_0_})
-    # echo ${split_msg[2]} >&2
-    vcs_info_msg_3_abbrev_=$(__shorten ${split_msg[2]})
+    if [ ${vcs_info_msg_0_} == "%~" ] ; then
+        split_msg[1]=""
+        vcs_info_msg_3_abbrev_=$(__shorten "$(print -P ${vcs_info_msg_0_})")
+    else
+        vcs_info_msg_3_abbrev_=$(__shorten "${split_msg[2]}")
+    fi
+
     echo "%F{blue}${split_msg[1]%%/.}$vcs_info_msg_3_abbrev_ %F{magenta}$vcs_info_msg_1_%f%F{8}`git_dirty` $vcs_info_msg_2_%f"
 }
 
 precmd_time() {
+    # XXX: use fc -1 -D for run times instead
     echo "%F{cyan}$(date '+%I:%M %p')%f "
 }
 
@@ -176,7 +182,12 @@ cmd_exec_time() {
     local stop=`date +%s`
     local start=${cmd_timestamp:-$stop}
     let local elapsed=$stop-$start
-    [ $elapsed -gt 5 ] && echo ${elapsed}s
+    if [ $elapsed -le 5 ] && return
+    local _seconds=$SECONDS
+    SECONDS=$elapsed
+    print -P "%(3600S.$[$elapsed/3600]h .)%(60S.$[$elapsed%3600/60]m .)$[$elapsed%60]s"
+    SECONDS=${_seconds}
+    # echo ${elapsed}s
 }
 
 # Get the intial timestamp for cmd_exec_time
@@ -185,17 +196,55 @@ preexec() {
     cmd_timestamp=`date +%s`
 }
 
+__isgit() {
+    [ "$1" == git ]
+}
+
 # Output additional information about paths, repos and exec time
 #
 precmd() {
+    # local _ret=$?
     vcs_info # Get version control info before we start outputting stuff
-    # print -P "\n$(repo_information) %F{yellow}$(cmd_exec_time)%f"
-    print -P "$(precmd_time)$(repo_information) %F{yellow}$(cmd_exec_time)%f"
-}
 
+    EXEC_TIME=$(cmd_exec_time)
+    # reset the timestamp
+    unset cmd_timestamp
+
+    #RPS1
+
+    # TODO: convert into a reusable function
+
+    _LPROMPT1=$(print -P "$LPROMPT1")
+    _RPROMPT1=$(print -P "$RPROMPT1")
+    _LPROMPT1_NF=$(echo $_LPROMPT1 | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g")
+    _RPROMPT1_NF=$(echo $_RPROMPT1 | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g")
+    local llength=${#_LPROMPT1_NF}
+    local rlength=${#_RPROMPT1_NF}
+    # TODO: see if i can get this to work instead of sed
+    # local zero='%([BSUbfksu]|([FB]|){*})'
+    # local llength=${#${(S%%)_LPROMPT1//$~zero/}}
+    # local rlength=${#${(S%%)_RPROMPT1//$~zero/}}
+    local spaces=$(($COLUMNS - ${llength} - ${rlength} - 1))
+    (( spaces < 1 )) && (( spaces = 1 ))
+    _SPROMPT1=$(printf " "%.0s {1..$spaces})
+
+    # work around git bug where return code 141 should be success
+    # if __isgit $(fc -ln -1) && [ $_ret == '141' ] ; then
+    #     PROMPT=$(print -P ${_ORIG_PROMPT})
+    # else
+    #     PROMPT=$_ORIG_PROMPT
+    # fi
+    print -P $PROMPT1
+}
 # Define prompts
 #
-PROMPT="%(?.%F{magenta}.%F{red})❯%f " # Display a red prompt char on failure
+LPROMPT1='$(precmd_time)$(repo_information) '
+RPROMPT1='%F{yellow}$EXEC_TIME%f'
+PROMPT1='${_LPROMPT1}${_SPROMPT1}${_RPROMPT1}'
+PROMPT0='%(?.%F{magenta}.%F{red})❯%f ' # Display a red prompt char on failure
+# PROMPT="$PROMPT1
+# $PROMPT0"
+PROMPT="$PROMPT0"
 RPROMPT="%F{8}${SSH_TTY:+%n@%m}%f"    # Display username if connected via SSH
 
 # ------------------------------------------------------------------------------
